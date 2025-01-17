@@ -1,91 +1,140 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useState, useEffect } from 'react';
 
-export default function Home() {
-  const [advocates, setAdvocates] = useState([]);
-  const [filteredAdvocates, setFilteredAdvocates] = useState([]);
+interface Advocate {
+  id: number;
+  firstName?: string;
+  lastName?: string;
+  city?: string;
+  degree?: string;
+  specialties?: string[];
+  yearsOfExperience?: number;
+  phoneNumber?: string;
+}
 
-  useEffect(() => {
-    console.log("fetching advocates...");
-    fetch("/api/advocates").then((response) => {
+const Page = () => {
+  const [advocates, setAdvocates] = useState<Advocate[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [pageNumber, setPageNumber] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const fetchAdvocates = (searchTerm?: string | undefined, pageNumber: number | undefined = 1) => {
+    const urlFriendlSearchTerm = !searchTerm ? "" : encodeURI(searchTerm);
+    fetch(`/api/advocates?searchTerm=${urlFriendlSearchTerm}&pg=${pageNumber}`).then((response) => {
       response.json().then((jsonResponse) => {
-        setAdvocates(jsonResponse.data);
-        setFilteredAdvocates(jsonResponse.data);
+        let advocates = jsonResponse.advocates || [];
+        let pageNumber = jsonResponse.pageNumber || 1;
+        let totalPages = jsonResponse.totalPages || 1;
+        setPageNumber(pageNumber);
+        setTotalPages(totalPages);
+        setAdvocates(advocates);
       });
     });
-  }, []);
+  }
 
-  const onChange = (e) => {
+  useEffect(() => fetchAdvocates(), [])
+
+  const throttleDebounce = (fn: (...args: any[]) => void, delay: number = 0) => {
+    let lastCall = 0;
+    let timeout: string | number | NodeJS.Timeout | null | undefined = null;
+
+    return function (...args: any) {
+      const now = new Date().getTime();
+      if (now - lastCall < delay) {
+        if (timeout !== null) {
+          clearTimeout(timeout);
+        }
+        timeout = setTimeout(() => {
+          lastCall = now;
+          fn.apply(null, args);
+        }, delay);
+      } else {
+        lastCall = now;
+        fn(...args);
+      }
+    };
+  }
+
+  const searchForAdvocates = (e) => {
     const searchTerm = e.target.value;
-
-    document.getElementById("search-term").innerHTML = searchTerm;
-
-    console.log("filtering advocates...");
-    const filteredAdvocates = advocates.filter((advocate) => {
-      return (
-        advocate.firstName.includes(searchTerm) ||
-        advocate.lastName.includes(searchTerm) ||
-        advocate.city.includes(searchTerm) ||
-        advocate.degree.includes(searchTerm) ||
-        advocate.specialties.includes(searchTerm) ||
-        advocate.yearsOfExperience.includes(searchTerm)
-      );
-    });
-
-    setFilteredAdvocates(filteredAdvocates);
+    setSearchTerm(searchTerm);
+    throttleDebounce(() => fetchAdvocates(searchTerm, 1), 2000)();
   };
 
-  const onClick = () => {
-    console.log(advocates);
-    setFilteredAdvocates(advocates);
+  const resetSearch = () => {
+    setSearchTerm("");
+    fetchAdvocates();
+  };
+
+  const handlePageChange = (newPageNumber: number) => {
+    fetchAdvocates(searchTerm, newPageNumber);
   };
 
   return (
-    <main style={{ margin: "24px" }}>
-      <h1>Solace Advocates</h1>
+    <main className="m-6">
+      <h1 className="text-3xl font-bold">Solace Advocates</h1>
       <br />
       <br />
       <div>
-        <p>Search</p>
-        <p>
-          Searching for: <span id="search-term"></span>
+        <p className="text-lg font-semibold">Search</p>
+        <p className="text-sm">
+          Searching for: <span id="search-term" className="font-medium">{searchTerm}</span>
         </p>
-        <input style={{ border: "1px solid black" }} onChange={onChange} />
-        <button onClick={onClick}>Reset Search</button>
+        <input className="border border-black p-2 mt-2" onChange={searchForAdvocates} value={searchTerm} />
+        <button className="ml-2 p-2 bg-blue-500 text-white rounded" onClick={resetSearch}>Reset Search</button>
       </div>
       <br />
       <br />
-      <table>
+      <table className="min-w-full bg-white">
         <thead>
-          <th>First Name</th>
-          <th>Last Name</th>
-          <th>City</th>
-          <th>Degree</th>
-          <th>Specialties</th>
-          <th>Years of Experience</th>
-          <th>Phone Number</th>
+          <tr>
+            <th className="py-2 px-4 border-b">First Name</th>
+            <th className="py-2 px-4 border-b">Last Name</th>
+            <th className="py-2 px-4 border-b">City</th>
+            <th className="py-2 px-4 border-b">Degree</th>
+            <th className="py-2 px-4 border-b">Specialties</th>
+            <th className="py-2 px-4 border-b">Years of Experience</th>
+            <th className="py-2 px-4 border-b">Phone Number</th>
+          </tr>
         </thead>
         <tbody>
-          {filteredAdvocates.map((advocate) => {
-            return (
-              <tr>
-                <td>{advocate.firstName}</td>
-                <td>{advocate.lastName}</td>
-                <td>{advocate.city}</td>
-                <td>{advocate.degree}</td>
-                <td>
-                  {advocate.specialties.map((s) => (
-                    <div>{s}</div>
-                  ))}
-                </td>
-                <td>{advocate.yearsOfExperience}</td>
-                <td>{advocate.phoneNumber}</td>
-              </tr>
-            );
-          })}
+          {advocates.map((advocate) => (
+            <tr key={advocate.id} className="hover:bg-gray-100">
+              <td className="py-2 px-4 border-b">{advocate.firstName}</td>
+              <td className="py-2 px-4 border-b">{advocate.lastName}</td>
+              <td className="py-2 px-4 border-b">{advocate.city}</td>
+              <td className="py-2 px-4 border-b">{advocate.degree}</td>
+              <td className="py-2 px-4 border-b">
+                {advocate.specialties?.map((s, index) => (
+                  <div key={index} className="inline-block bg-gray-200 rounded-full px-3 py-1 text-sm font-semibold text-gray-700 mr-2 mb-2">{s}</div>
+                ))}
+              </td>
+              <td className="py-2 px-4 border-b">{advocate.yearsOfExperience}</td>
+              <td className="py-2 px-4 border-b">{advocate.phoneNumber}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
+      <div className="flex justify-center mt-4">
+        <button
+          className={`p-2 mx-1 ${pageNumber === 1 ? 'bg-gray-300' : 'bg-blue-500 text-white'} rounded`}
+          onClick={() => handlePageChange(pageNumber - 1)}
+          disabled={pageNumber === 1}
+        >
+          Previous
+        </button>
+        <span className="p-2 mx-1">{pageNumber} / {totalPages}</span>
+        <button
+          className={`p-2 mx-1 ${pageNumber === totalPages ? 'bg-gray-300' : 'bg-blue-500 text-white'} rounded`}
+          onClick={() => handlePageChange(pageNumber + 1)}
+          disabled={pageNumber === totalPages}
+        >
+          Next
+        </button>
+      </div>
     </main>
   );
-}
+};
+
+export default Page;
